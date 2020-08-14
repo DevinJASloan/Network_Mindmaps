@@ -1,0 +1,33 @@
+####  Device Information
+| Serial number | Location |
+| ------------- | -------- |
+| {{sh_version_parsed.version.chassis_sn}} | {{show_commands_lab_access_results.stdout[5]}} |
+{% for int in sh_pc_sum_parsed.interfaces %}
+{%   if 'U' in sh_pc_sum_parsed.interfaces[int].flags  %}
+#### {{int}}
+{%     if 'S' in sh_pc_sum_parsed.interfaces[int].flags%}
+##### Switched Port-channel
+##### **VLAN(s)**: {{sh_trunk_parsed.interface[int].vlans_allowed_on_trunk}}
+{%     else %}
+##### Routed Port-channel
+{%     endif%}
+##### **Local Interfaces**: {{sh_pc_sum_parsed.interfaces[int].members | list}}
+##### **Remote Interfaces**: {% for item in sh_cdp_neigh_det_parsed.index %}{% if sh_cdp_neigh_det_parsed.index[item].local_interface in sh_pc_sum_parsed.interfaces[int].members | list %} {{sh_cdp_neigh_det_parsed.index[item].port_id}}{% endif %}{% endfor %}
+
+{%     for item in sh_cdp_neigh_det_parsed.index %}
+{%       set  temp_int = sh_cdp_neigh_det_parsed.index[item].local_interface %}
+{%       if temp_int == sh_pc_sum_parsed.interfaces[int].port_channel.port_channel_member_intfs | last %}
+##### **IP Address:**{{sh_cdp_neigh_det_parsed.index[item].management_addresses}}
+##### ***{{sh_cdp_neigh_det_parsed.index[item].device_id}}***
+{%       endif %}
+{%     endfor %}
+{%   endif %}
+{% endfor %}
+{% for item in sh_cdp_neigh_det_parsed.index %}
+{%   if 'Switch' not in sh_cdp_neigh_det_parsed.index[item].capabilities %}
+#### {{sh_cdp_neigh_det_parsed.index[item].device_id}}
+##### **Platform**: {{sh_cdp_neigh_det_parsed.index[item].platform}}
+##### **Local Port**:{{sh_cdp_neigh_det_parsed.index[item].local_interface}}
+##### **Remote Port**:{{sh_cdp_neigh_det_parsed.index[item].port_id}}
+{%   endif %}
+{% endfor %}
