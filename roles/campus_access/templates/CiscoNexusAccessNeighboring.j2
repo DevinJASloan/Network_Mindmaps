@@ -1,0 +1,31 @@
+## Device Information
+| Serial number | Location |
+| ------------- | -------- |
+| {{sh_inventory_parsed.name.Chassis.serial_number}} | {% if show_commands_lab_access_results.stdout[5] is defined %}{{show_commands_lab_access_results.stdout[5]}}{% else %} SNMP location is undefined {% endif %} |
+{% for int in sh_pc_sum_parsed.interfaces %}
+{%   set lower_int = int | lower %}
+{%   if 'up' in sh_pc_sum_parsed.interfaces[int].oper_status %}
+#### {{int}}
+{%     if 'switched' in sh_pc_sum_parsed.interfaces[int].layer%}
+##### Switched Port-channel
+{%       if sh_trunk_parsed[lower_int].trunk_vlans is defined %}
+##### **VLANs**:{{sh_trunk_parsed[lower_int].trunk_vlans}}
+{%       endif %}
+{%     else %}
+##### Routed Port-channel
+{%     endif%}
+##### **Local Interfaces**: {{sh_pc_sum_parsed.interfaces[int].members | list}}
+##### **Remote Interfaces**: {% for item in sh_cdp_neigh_det_parsed.index %}{% if sh_cdp_neigh_det_parsed.index[item].local_interface in sh_pc_sum_parsed.interfaces[int].members | list %} {{sh_cdp_neigh_det_parsed.index[item].port_id}}{% endif %}{% endfor %}
+
+{%     for item in sh_cdp_neigh_det_parsed.index %}
+{%       set temp_int = sh_cdp_neigh_det_parsed.index[item].local_interface %}
+{%       if temp_int == sh_pc_sum_parsed.interfaces[int].members | first %}
+##### **IP Address**: {{sh_cdp_neigh_det_parsed.index[item].interface_addresses}}
+##### ***{{sh_cdp_neigh_det_parsed.index[item].device_id}}***
+{%         if sh_cdp_neigh_det_parsed.index[item].platform is defined %}
+##### **Platform**:{{sh_cdp_neigh_det_parsed.index[item].platform}}
+{%         endif %}
+{%       endif %}
+{%     endfor %}
+{%   endif %}
+{% endfor %}
