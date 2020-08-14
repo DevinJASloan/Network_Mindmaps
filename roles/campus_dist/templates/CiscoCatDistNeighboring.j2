@@ -1,0 +1,46 @@
+# [{{inventory_hostname}}](../../../roles/campus_dist/documentation/physical/{{inventory_hostname}}.html)
+##  Device Information
+| Serial number | Location |
+| ------------- | -------- |
+| {{sh_version_parsed.version.chassis_sn}} | {{show_commands_lab_access_results.stdout[5]}} |
+## Back to Core: [MG06FSZ46](../../../documentation/CAMPUS/Lab_mindmap.html)
+{% for int in sh_pc_sum_parsed.interfaces %}
+{%   set ns = namespace(valid_port = ' ') %}
+{%   if 'U' in sh_pc_sum_parsed.interfaces[int].flags  %}
+## {{int}}
+{%     if 'S' in sh_pc_sum_parsed.interfaces[int].flags%}
+### Switched Port-channel
+### **VLAN(s)**: {{sh_trunk_parsed.interface[int].vlans_allowed_on_trunk}}
+{%     else %}
+### Routed Port-channel
+{%     endif%}
+### **Local Interfaces**: {{sh_pc_sum_parsed.interfaces[int].members | list}}
+### **Remote Interfaces**:{% for item in sh_cdp_neigh_det_parsed.index %}{% if sh_cdp_neigh_det_parsed.index[item].local_interface in sh_pc_sum_parsed.interfaces[int].members | list %} {{sh_cdp_neigh_det_parsed.index[item].port_id}}{% endif %}{% endfor %}
+
+{%     for member in sh_pc_sum_parsed.interfaces[int].members %}
+{%       if 'P' in sh_pc_sum_parsed.interfaces[int].members[member].flags %}
+{%         set ns.valid_port = sh_pc_sum_parsed.interfaces[int].members[member].interface %}
+{%       endif%}
+{%     endfor %}
+{%     for item in sh_cdp_neigh_det_parsed.index %}
+{%       set  temp_int = sh_cdp_neigh_det_parsed.index[item].local_interface %}
+{%       if temp_int == ns.valid_port %}
+### **IP Address**: {{sh_cdp_neigh_det_parsed.index[item].management_addresses}}
+{%         set  dns_name = '.' + enterprise_defaults.domain %}
+{%         if sh_cdp_neigh_det_parsed.index[item].device_id | regex_replace(dns_name) in core_list %}
+### ***[{{sh_cdp_neigh_det_parsed.index[item].device_id}}](../../../roles/campus_core/documentation/physical/{{sh_cdp_neigh_det_parsed.index[item].device_id}}.html)***
+{%         else %}
+### ***[{{sh_cdp_neigh_det_parsed.index[item].device_id}}](../../../roles/campus_access/documentation/physical/{{sh_cdp_neigh_det_parsed.index[item].device_id}}.html)***
+{%         endif %}
+{%       endif %}
+{%     endfor %}
+{%   endif %}
+{% endfor %}
+{% for item in sh_cdp_neigh_det_parsed.index %}
+{%   if 'Switch' not in sh_cdp_neigh_det_parsed.index[item].capabilities %}
+## {{sh_cdp_neigh_det_parsed.index[item].device_id}}
+### **Platform**: {{sh_cdp_neigh_det_parsed.index[item].platform}}
+### **Local Port**:{{sh_cdp_neigh_det_parsed.index[item].local_interface}}
+### **Remote Port**:{{sh_cdp_neigh_det_parsed.index[item].port_id}}
+{%   endif %}
+{% endfor %}
