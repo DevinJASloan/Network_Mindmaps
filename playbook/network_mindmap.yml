@@ -101,32 +101,32 @@
   tasks:
     - name: Create Campus Core markdown files
       template:
-        src: ../../../roles/campus_core/templates/CampusCoreMDMAP.j2
-        dest: ../../../roles/campus_core/documentation/{{inventory_hostname}}.md
+        src: ../roles/campus_core/templates/CampusCoreMDMAP.j2
+        dest: ../roles/campus_core/documentation/{{inventory_hostname}}.md
       tags: ['config']
 - hosts: CampusDist
   name: Create files for Dist
   tasks:
     - name: Create Campus Dist markdown files
       template:
-        src: ../../../roles/campus_dist/templates/CampusDistMDMap.j2
-        dest: ../../../roles/campus_dist/documentation/{{inventory_hostname}}.md
+        src: ../roles/campus_dist/templates/CampusDistMDMap.j2
+        dest: ../roles/campus_dist/documentation/{{inventory_hostname}}.md
       tags: ['config']
 - hosts: DCCore
   name: Create files for Dist
   tasks:
     - name: Create DC markdown files
       template:
-        src: ../../../roles/dc_core/templates/DCCoreMDMAP.j2
-        dest: ../../../roles/dc_core/documentation/{{inventory_hostname}}.md
+        src: ../roles/dc_core/templates/DCCoreMDMAP.j2
+        dest: ../roles/dc_core/documentation/{{inventory_hostname}}.md
       tags: ['config']
 - hosts: CampusAccess
   name: Create files for Access
   tasks:
     - name: Create Campus Access markdown files
       template:
-        src: ../../../roles/campus_access/templates/CampusAccessMDMap.j2
-        dest: ../../../roles/campus_access/documentation/{{inventory_hostname}}.md
+        src: ../roles/campus_access/templates/CampusAccessMDMap.j2
+        dest: ../roles/campus_access/documentation/{{inventory_hostname}}.md
       tags: ['config']
 
 # Merge Neighboring Files to Single Mind Map
@@ -136,30 +136,30 @@
     - name: Create Campus Files
       copy:
         content: ""
-        dest: ../../../documentation/CAMPUS/Campus_mindmap.md
+        dest: ../documentation/CAMPUS/Campus_mindmap.md
       run_once: true
     - name: Merge Core Devices Into Single File
       blockinfile:
-        block: "{{ lookup('file', '../../../roles/campus_core/documentation/{{inventory_hostname}}.md')}}"
-        dest: ../../../documentation/CAMPUS/Campus_mindmap.md
+        block: "{{ lookup('file', '../roles/campus_core/documentation/{{inventory_hostname}}.md')}}"
+        dest: ../documentation/CAMPUS/Campus_mindmap.md
         insertafter: "{{inventory_hostname}}"
         marker: "add core switch: {{inventory_hostname}}"
       tags: ['config','documentation']
       throttle: 1
     - name: remove DNS path from hostnames
       replace:
-        path: ../../../documentation/CAMPUS/Campus_mindmap.md
+        path: ../documentation/CAMPUS/Campus_mindmap.md
         regexp: ".{{enterprise_defaults.domain}}|add core switch.*"
     - name: create Core Mind Map 
-      shell: "markmap --no-open ../../../documentation/CAMPUS/Campus_mindmap.md -o ../../../documentation/CAMPUS/Campus_mindmap.html"
+      shell: "markmap --no-open ../documentation/CAMPUS/Campus_mindmap.md -o ../documentation/CAMPUS/Campus_mindmap.html"
       register: markmap
 - hosts: CampusAccess
   order: inventory
   tasks:
     - name: Merge Access Devices Into Dist files
       blockinfile:
-        block: "{{ lookup('file', '../../../roles/campus_access/documentation/{{inventory_hostname}}.md') }}"
-        dest: "../../../roles/campus_dist/documentation/{{dist_switch}}.md"
+        block: "{{ lookup('file', '../roles/campus_access/documentation/{{inventory_hostname}}.md') }}"
+        dest: "../roles/campus_dist/documentation/{{dist_switch}}.md"
         insertafter: "{{inventory_hostname}}"
         marker: "*added Campus Access switch: {{inventory_hostname}}"
       tags: ['config','documentation']
@@ -171,73 +171,73 @@
   tasks:
     - name: remove unneccecary lines from files
       replace:
-        path: ../../../roles/campus_dist/documentation/{{inventory_hostname}}.md
+        path: ../roles/campus_dist/documentation/{{inventory_hostname}}.md
         regexp: "\n\\*.*|\\'\\:|\\'\\]|\\'|\\[\\'|\\{|\\}|.{{enterprise_defaults.domain}}"
     - name: create Core Mind Map 
-      shell: "markmap --no-open ../../../roles/campus_dist/documentation/{{inventory_hostname}}.md -o ../../../roles/campus_dist/documentation/{{inventory_hostname}}.html"
+      shell: "markmap --no-open .../roles/campus_dist/documentation/{{inventory_hostname}}.md -o ../roles/campus_dist/documentation/{{inventory_hostname}}.html"
 - hosts: DCCore
   name: clean up DC Markdown file
   tasks:
     - name: remove unneccecary lines from files
       replace:
-        path: ../../../roles/dc_core/documentation/{{inventory_hostname}}.md
+        path: ../roles/dc_core/documentation/{{inventory_hostname}}.md
         regexp: "\n\\*.*|\\'\\:|\\'|\\[\\'|\\'\\]|\\{|\\}|.{{enterprise_defaults.domain}}"
     - name: create Core Mind Map 
-      shell: "markmap --no-open ../../../roles/dc_core/documentation/{{inventory_hostname}}.md -o ../../../roles/dc_core/documentation/{{inventory_hostname}}.html"
+      shell: "markmap --no-open ../roles/dc_core/documentation/{{inventory_hostname}}.md -o ../roles/dc_core/documentation/{{inventory_hostname}}.html"
 
 ### Create local device markdowns and mindmaps
 - hosts: CampusCore
   name: Create Campus Core Physical audit Files
   tasks: 
     - name: include var files
-      include_vars: ../../../roles/campus_core/defaults/main.yml
+      include_vars: ../roles/campus_core/defaults/main.yml
       run_once: true
     - name: create core markdown file
       template:
-        src: ../../../roles/campus_core/templates/CampusCoreDOC.j2
-        dest: ../../../roles/campus_core/documentation/physical/{{inventory_hostname}}.md
+        src: ../roles/campus_core/templates/CampusCoreDOC.j2
+        dest: ../roles/campus_core/documentation/physical/{{inventory_hostname}}.md
       tags: ['config']
     - name: Create into markmap
-      shell: "markmap --no-open  ../../../roles/campus_core/documentation/physical/{{inventory_hostname}}.md -o  ../../../roles/campus_core/documentation/physical/{{inventory_hostname}}.html"
+      shell: "markmap --no-open  ../roles/campus_core/documentation/physical/{{inventory_hostname}}.md -o  ../roles/campus_core/documentation/physical/{{inventory_hostname}}.html"
 - hosts: CampusDist
   name: Create Campus Dist Physical audit Files
   tasks: 
     - name: include var files
-      include_vars: ../../../roles/campus_dist/defaults/main.yml
+      include_vars: ../roles/campus_dist/defaults/main.yml
       run_once: true
     - name: create distribution markdown files
       template:
-        src: ../../../roles/campus_dist/templates/CampusDistDOC.j2
-        dest: ../../../roles/campus_dist/documentation/physical/{{inventory_hostname}}.md
+        src: ../roles/campus_dist/templates/CampusDistDOC.j2
+        dest: ../roles/campus_dist/documentation/physical/{{inventory_hostname}}.md
       tags: ['config']
     - name: Create into markmap
-      shell: "markmap --no-open  ../../../roles/campus_dist/documentation/physical/{{inventory_hostname}}.md -o  ../../../roles/campus_dist/documentation/physical/{{inventory_hostname}}.html"
+      shell: "markmap --no-open  ../roles/campus_dist/documentation/physical/{{inventory_hostname}}.md -o  ../roles/campus_dist/documentation/physical/{{inventory_hostname}}.html"
 - hosts: CampusAccess
   name: Create Campus Access Physical audit Files
   tasks: 
     - name: include var files
-      include_vars: ../../../roles/campus_access/defaults/main.yml
+      include_vars: ../roles/campus_access/defaults/main.yml
       run_once: true
     - name: create core markdown file
       template:
-        src: ../../../roles/campus_access/templates/CampusAccessDOC.j2
-        dest: ../../../roles/campus_access/documentation/physical/{{inventory_hostname}}.md
+        src: ../roles/campus_access/templates/CampusAccessDOC.j2
+        dest: ../roles/campus_access/documentation/physical/{{inventory_hostname}}.md
       tags: ['config']
     - name: Create into markmap
-      shell: "markmap --no-open  ../../../roles/campus_access/documentation/physical/{{inventory_hostname}}.md -o  ../../../roles/campus_access/documentation/physical/{{inventory_hostname}}.html"
+      shell: "markmap --no-open  ../roles/campus_access/documentation/physical/{{inventory_hostname}}.md -o  ../roles/campus_access/documentation/physical/{{inventory_hostname}}.html"
 - hosts: DCCore
   name: Create DC Physical audit Files
   tasks: 
     - name: include var files
-      include_vars: ../../../roles/dc_core/defaults/main.yml
+      include_vars: ../roles/dc_core/defaults/main.yml
       run_once: true
     - name: create core markdown file
       template:
-        src: ../../../roles/dc_core/templates/CampusAccessDOC.j2
-        dest: ../../../roles/dc_core/documentation/physical/{{inventory_hostname}}.md
+        src: ../roles/dc_core/templates/CampusAccessDOC.j2
+        dest: ../roles/dc_core/documentation/physical/{{inventory_hostname}}.md
       tags: ['config']
     - name: Create into markmap
-      shell: "markmap --no-open  ../../../roles/dc_core/documentation/physical/{{inventory_hostname}}.md -o  ../../../roles/dc_core/documentation/physical/{{inventory_hostname}}.html"
+      shell: "markmap --no-open  ../roles/dc_core/documentation/physical/{{inventory_hostname}}.md -o  ../roles/dc_core/documentation/physical/{{inventory_hostname}}.html"
 
 # Git Add / Commit / Push#
 - hosts: localhost
@@ -251,7 +251,7 @@
         git_message: "{{git_commit_prompt}}"
       tags: ['config','documentation']
     - name: Git - Add
-      shell: "git add ../../../*"
+      shell: "git add ../*"
       register: gitadd
       tags: ['config','documentation']
     - name: Git - commit
