@@ -1,1 +1,264 @@
+---
 
+### Gather Per device SSH login information
+- hosts: CampusCore,CampusDist,CampusAccess,DCCore
+  vars_prompt:
+    - name: ios_password_prompt
+      prompt: "Enter IOS password"
+      private: yes
+      tags: ['config','documentation']
+    - name: nxos_password_prompt
+      prompt: "Enter NXOS password"
+      private: yes
+      tags: ['config','documentation']
+  tasks:
+    - set_fact:
+        ios_password: "{{ios_password_prompt}}"
+      no_log: true
+      delegate_to: localhost
+      run_once: true
+      tags: ['config','documentation']
+    - set_fact:
+        nxos_password: "{{nxos_password_prompt}}"
+      no_log: true
+      delegate_to: localhost
+      run_once: true
+      tags: ['config','documentation']
+    - name: create core variable
+      set_fact: 
+        core_list: "{{groups['CampusCore']}}"
+      run_once: true
+    - name: create DNS variable
+      set_fact: 
+        DNS_name: ".{{enterprise_defaults.domain}}"
+      run_once: true
+    - name: Include parse_genie ansible-galaxy role 
+      include_role:
+        name: clay584.parse_genie 
+      tags: ['config'] 
+      run_once: true
+
+## Gather Relevant Information Required for Mindmap creation
+- hosts: CampusCore,CampusDist,CampusAccess
+  name: Campus Switches Audit
+  tasks:
+    - name: Campus distribution switches - Gather outputs from show commands
+      ios_command:
+        commands:
+          - show cdp neighbors detail
+          - show lldp neighbors detail
+          - show etherchannel summary
+          - show version
+          - show interfaces trunk
+          - show snmp location
+      register: show_commands_Campus_access_results
+      tags: ['config']
+    ### Use Genie to Parse Output of show commands
+    - name: Parse show command outputs using Genie
+      set_fact: 
+        sh_cdp_neigh_det_parsed: "{{show_commands_Campus_access_results.stdout[0] | parse_genie(command='show cdp neighbors detail', os='iosxe')}}"
+        sh_lldp_neigh_det_parsed: "{{show_commands_Campus_access_results.stdout[1] | parse_genie(command='show lldp neighbors detail', os='iosxe')}}"
+        sh_pc_sum_parsed: "{{  show_commands_Campus_access_results.stdout[2]  | parse_genie(command='show etherchannel summary', os='iosxe')}}"
+        sh_version_parsed: "{{  show_commands_Campus_access_results.stdout[3]  | parse_genie(command='show version', os='iosxe')}}"
+        sh_trunk_parsed: "{{  show_commands_Campus_access_results.stdout[4]  | parse_genie(command='show interfaces trunk', os='iosxe')}}"
+      tags: ['config']
+## This section can be toggled with section 165-167
+- hosts: CampusAccess
+  name: assign dist switch varaiable
+  tasks:
+    - name: parse cdp fir dist switch
+      set_fact:
+        dist_switch: "{{item | regex_replace(DNS_name)}}"
+      loop: "{{ sh_cdp_neigh_det_parsed | json_query('index.*.device_id') | flatten(levels=1) }}"
+      when: "item | regex_replace(DNS_name) in groups['CampusDist']"
+
+- hosts: DCCore
+  name: Nexus Switches
+  tasks:
+    - name: Campus distribution switches - Gather outputs from show commands
+      nxos_command:
+        commands:
+          - show cdp neighbors detail
+          - show port-channel summary
+          - show inventory
+          - show interface switchport
+          - show snmp | i location
+      register: show_commands_Campus_access_results
+      tags: ['config']
+    ### Use Genie to Parse Output of show commands
+    - name: Parse show command outputs using Genie
+      set_fact: 
+        sh_cdp_neigh_det_parsed: "{{show_commands_Campus_access_results.stdout[0] | parse_genie(command='show cdp neighbors detail', os='nxos')}}"
+        sh_pc_sum_parsed: "{{  show_commands_Campus_access_results.stdout[1]  | parse_genie(command='show port-channel summary', os='nxos')}}"
+        sh_inventory_parsed: "{{  show_commands_Campus_access_results.stdout[2]  | parse_genie(command='show inventory', os='nxos')}}"
+        sh_trunk_parsed: "{{  show_commands_Campus_access_results.stdout[3]  | parse_genie(command='show interface switchport', os='nxos')}}"
+        sh_location_parsed: "{{show_commands_Campus_access_results.stdout[4] | regex_replace('sys location: |sys location:')}}"
+      tags: ['config']
+
+# Create Neighboring Files Per Device Type
+- hosts: CampusCore
+  name: Create files for Core
+  tasks:
+    - name: Create Campus Core markdown files
+      template:
+        src: ../../../roles/campus_core/templates/CampusCoreMDMAP.j2
+        dest: ../../../roles/campus_core/documentation/{{inventory_hostname}}.md
+      tags: ['config']
+- hosts: CampusDist
+  name: Create files for Dist
+  tasks:
+    - name: Create Campus Dist markdown files
+      template:
+        src: ../../../roles/campus_dist/templates/CampusDistMDMap.j2
+        dest: ../../../roles/campus_dist/documentation/{{inventory_hostname}}.md
+      tags: ['config']
+- hosts: DCCore
+  name: Create files for Dist
+  tasks:
+    - name: Create DC markdown files
+      template:
+        src: ../../../roles/dc_core/templates/DCCoreMDMAP.j2
+        dest: ../../../roles/dc_core/documentation/{{inventory_hostname}}.md
+      tags: ['config']
+- hosts: CampusAccess
+  name: Create files for Access
+  tasks:
+    - name: Create Campus Access markdown files
+      template:
+        src: ../../../roles/campus_access/templates/CampusAccessMDMap.j2
+        dest: ../../../roles/campus_access/documentation/{{inventory_hostname}}.md
+      tags: ['config']
+
+# Merge Neighboring Files to Single Mind Map
+- hosts: CampusCore
+  name: Create Mindmap Document
+  tasks:
+    - name: Create Campus Files
+      copy:
+        content: ""
+        dest: ../../../documentation/CAMPUS/Campus_mindmap.md
+      run_once: true
+    - name: Merge Core Devices Into Single File
+      blockinfile:
+        block: "{{ lookup('file', '../../../roles/campus_core/documentation/{{inventory_hostname}}.md')}}"
+        dest: ../../../documentation/CAMPUS/Campus_mindmap.md
+        insertafter: "{{inventory_hostname}}"
+        marker: "add core switch: {{inventory_hostname}}"
+      tags: ['config','documentation']
+      throttle: 1
+    - name: remove DNS path from hostnames
+      replace:
+        path: ../../../documentation/CAMPUS/Campus_mindmap.md
+        regexp: ".{{enterprise_defaults.domain}}|add core switch.*"
+    - name: create Core Mind Map 
+      shell: "markmap --no-open ../../../documentation/CAMPUS/Campus_mindmap.md -o ../../../documentation/CAMPUS/Campus_mindmap.html"
+      register: markmap
+- hosts: CampusAccess
+  order: inventory
+  tasks:
+    - name: Merge Access Devices Into Dist files
+      blockinfile:
+        block: "{{ lookup('file', '../../../roles/campus_access/documentation/{{inventory_hostname}}.md') }}"
+        dest: "../../../roles/campus_dist/documentation/{{dist_switch}}.md"
+        insertafter: "{{inventory_hostname}}"
+        marker: "*added Campus Access switch: {{inventory_hostname}}"
+      tags: ['config','documentation']
+      # throttle: 1
+      # loop: "{{groups['CampusDist']}}"
+      # when: "item in show_commands_Campus_access_results.stdout[0]"
+- hosts: CampusDist
+  name: clean up Campus Dist Markdown file
+  tasks:
+    - name: remove unneccecary lines from files
+      replace:
+        path: ../../../roles/campus_dist/documentation/{{inventory_hostname}}.md
+        regexp: "\n\\*.*|\\'\\:|\\'\\]|\\'|\\[\\'|\\{|\\}|.{{enterprise_defaults.domain}}"
+    - name: create Core Mind Map 
+      shell: "markmap --no-open ../../../roles/campus_dist/documentation/{{inventory_hostname}}.md -o ../../../roles/campus_dist/documentation/{{inventory_hostname}}.html"
+- hosts: DCCore
+  name: clean up DC Markdown file
+  tasks:
+    - name: remove unneccecary lines from files
+      replace:
+        path: ../../../roles/dc_core/documentation/{{inventory_hostname}}.md
+        regexp: "\n\\*.*|\\'\\:|\\'|\\[\\'|\\'\\]|\\{|\\}|.{{enterprise_defaults.domain}}"
+    - name: create Core Mind Map 
+      shell: "markmap --no-open ../../../roles/dc_core/documentation/{{inventory_hostname}}.md -o ../../../roles/dc_core/documentation/{{inventory_hostname}}.html"
+
+### Create local device markdowns and mindmaps
+- hosts: CampusCore
+  name: Create Campus Core Physical audit Files
+  tasks: 
+    - name: include var files
+      include_vars: ../../../roles/campus_core/defaults/main.yml
+      run_once: true
+    - name: create core markdown file
+      template:
+        src: ../../../roles/campus_core/templates/CampusCoreDOC.j2
+        dest: ../../../roles/campus_core/documentation/physical/{{inventory_hostname}}.md
+      tags: ['config']
+    - name: Create into markmap
+      shell: "markmap --no-open  ../../../roles/campus_core/documentation/physical/{{inventory_hostname}}.md -o  ../../../roles/campus_core/documentation/physical/{{inventory_hostname}}.html"
+- hosts: CampusDist
+  name: Create Campus Dist Physical audit Files
+  tasks: 
+    - name: include var files
+      include_vars: ../../../roles/campus_dist/defaults/main.yml
+      run_once: true
+    - name: create distribution markdown files
+      template:
+        src: ../../../roles/campus_dist/templates/CampusDistDOC.j2
+        dest: ../../../roles/campus_dist/documentation/physical/{{inventory_hostname}}.md
+      tags: ['config']
+    - name: Create into markmap
+      shell: "markmap --no-open  ../../../roles/campus_dist/documentation/physical/{{inventory_hostname}}.md -o  ../../../roles/campus_dist/documentation/physical/{{inventory_hostname}}.html"
+- hosts: CampusAccess
+  name: Create Campus Access Physical audit Files
+  tasks: 
+    - name: include var files
+      include_vars: ../../../roles/campus_access/defaults/main.yml
+      run_once: true
+    - name: create core markdown file
+      template:
+        src: ../../../roles/campus_access/templates/CampusAccessDOC.j2
+        dest: ../../../roles/campus_access/documentation/physical/{{inventory_hostname}}.md
+      tags: ['config']
+    - name: Create into markmap
+      shell: "markmap --no-open  ../../../roles/campus_access/documentation/physical/{{inventory_hostname}}.md -o  ../../../roles/campus_access/documentation/physical/{{inventory_hostname}}.html"
+- hosts: DCCore
+  name: Create DC Physical audit Files
+  tasks: 
+    - name: include var files
+      include_vars: ../../../roles/dc_core/defaults/main.yml
+      run_once: true
+    - name: create core markdown file
+      template:
+        src: ../../../roles/dc_core/templates/CampusAccessDOC.j2
+        dest: ../../../roles/dc_core/documentation/physical/{{inventory_hostname}}.md
+      tags: ['config']
+    - name: Create into markmap
+      shell: "markmap --no-open  ../../../roles/dc_core/documentation/physical/{{inventory_hostname}}.md -o  ../../../roles/dc_core/documentation/physical/{{inventory_hostname}}.html"
+
+# Git Add / Commit / Push#
+- hosts: localhost
+  vars_prompt:
+    - name: git_commit_prompt
+      prompt: "Enter Git Commit Message"
+      private: no
+      tags: ['config','documentation']
+  tasks: 
+    - set_fact:
+        git_message: "{{git_commit_prompt}}"
+      tags: ['config','documentation']
+    - name: Git - Add
+      shell: "git add ../../../*"
+      register: gitadd
+      tags: ['config','documentation']
+    - name: Git - commit
+      shell: git commit -am "{{ git_message }}"
+      register: gitcommit
+      tags: ['config','documentation']
+    - name: Git - push
+      shell: git push 
+      register: gitpush
+      tags: ['config','documentation']
